@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>git-viz — 3D GitHub Skyline, Galaxy & Duel Visualizer</title>
+    <meta name="description" content="Transform GitHub profiles into 3D city skylines, interactive repo constellations, and side-by-side duel comparisons with Three.js.">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --card-bg: rgba(13, 17, 23, 0.82);
+            --border-color: rgba(48, 54, 61, 0.85);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* --- Header & Control Bar --- */
+        #ui-header {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 8px 16px;
+            border-radius: 40px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            max-width: 96vw;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-switch {
+            display: flex;
+            background: rgba(22, 27, 34, 0.8);
+            padding: 3px;
+            border-radius: 30px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mode-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: none;
+            background: transparent;
+            color: #8b949e;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: var(--accent-color);
+            color: #ffffff;
+            box-shadow: 0 2px 10px rgba(88, 166, 255, 0.4);
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            background: rgba(22, 27, 34, 0.8);
+            border-radius: 30px;
+            padding: 4px 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .input-group span {
+            color: #8b949e;
+            font-size: 13px;
+            margin-right: 4px;
+        }
+
+        .username-input {
+            border: none;
+            background: transparent;
+            color: #f0f6fc;
+            font-size: 14px;
+            font-weight: 600;
+            width: 120px;
+            outline: none;
+            padding: 5px 0;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            border-radius: 30px;
+            border: none;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            outline: none;
+            white-space: nowrap;
+        }
+
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: translateY(1px) scale(0.97); }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(46, 160, 67, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(33, 38, 45, 0.8);
+            color: #c9d1d9;
+            border: 1px solid var(--border-color);
+        }
+
+        .select-custom {
+            background: rgba(33, 38, 45, 0.8);
+            color: #c9d1d9;
+            border: 1px solid var(--border-color);
+            border-radius: 30px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* --- Presets Bar --- */
+        #presets-bar {
+            position: absolute;
+            top: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .preset-chip {
+            background: rgba(22, 27, 34, 0.7);
+            border: 1px solid rgba(48, 54, 61, 0.6);
+            backdrop-filter: blur(8px);
+            color: #8b949e;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preset-chip:hover {
+            color: #f0f6fc;
+            border-color: var(--accent-color);
+        }
+
+        /* --- Profile Card (Bottom Left) --- */
+        #profile-card {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            z-index: 20;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            padding: 18px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            width: 270px;
+            transition: all 0.3s ease;
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        #avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-color);
+            object-fit: cover;
+            background: #161b22;
+        }
+
+        .user-details h2 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+            color: #f0f6fc;
+        }
+
+        .user-details p {
+            margin: 2px 0 0 0;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            background: rgba(22, 27, 34, 0.5);
+            padding: 10px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: #8b949e; }
+        .stat-value { font-size: 14px; font-weight: 700; color: #f0f6fc; }
+
+        .lang-bar { display: flex; height: 7px; border-radius: 4px; overflow: hidden; background: #21262d; margin-top: 6px; }
+        .lang-segment { height: 100%; transition: width 0.5s ease; }
+
+        /* --- Timeline Playback Controller Bar (Bottom Center) --- */
+        #timeline-bar {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            padding: 8px 20px;
+            border-radius: 40px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            width: 420px;
+            max-width: 90vw;
+        }
+
+        #play-btn {
+            background: var(--accent-color);
+            color: #ffffff;
+            border: none;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
+
+        #play-btn:hover { transform: scale(1.1); }
+
+        #scrubber {
+            flex-grow: 1;
+            accent-color: var(--accent-color);
+            cursor: pointer;
+        }
+
+        #timeline-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent-color);
+            white-space: nowrap;
+            min-width: 90px;
+            text-align: right;
+        }
+
+        /* --- Duel VS Comparison Leaderboard Banner --- */
+        #duel-banner {
+            position: absolute;
+            top: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 18;
+            display: none;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            padding: 10px 24px;
+            border-radius: 30px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            align-items: center;
+            gap: 20px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .duel-player { display: flex; align-items: center; gap: 8px; }
+        .p1-color { color: #00f0ff; }
+        .p2-color { color: #ff0055; }
+        .vs-badge { background: #30363d; padding: 2px 10px; border-radius: 12px; font-size: 11px; color: #f0f6fc; }
+
+        /* --- Camera Widget & Sound Controls --- */
+        #camera-widget {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: #c9d1d9;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; cursor: pointer;
+            backdrop-filter: blur(12px);
+            transition: all 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            background: #30363d; color: #ffffff; border-color: var(--accent-color);
+        }
+
+        /* --- Raycaster Tooltip --- */
+        #tooltip {
+            position: absolute;
+            z-index: 30;
+            pointer-events: none;
+            background: rgba(13, 17, 23, 0.92);
+            border: 1px solid rgba(88, 166, 255, 0.4);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #f0f6fc;
+            opacity: 0;
+            transform: translate(-50%, -120%);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            white-space: nowrap;
+        }
+        #tooltip.active { opacity: 1; }
+
+        #toast {
+            position: absolute; top: 120px; left: 50%; transform: translateX(-50%);
+            z-index: 30; background: rgba(46, 160, 67, 0.95); color: #ffffff;
+            padding: 8px 22px; border-radius: 30px; font-weight: 600; font-size: 13px;
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }
+        #toast.show { opacity: 1; }
+
+        /* --- Settings Modal --- */
+        #settings-modal {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center;
+        }
+        .modal-card {
+            background: #161b22; border: 1px solid #30363d; padding: 24px;
+            border-radius: 20px; width: 340px; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        }
+        .modal-card h3 { margin: 0 0 10px 0; color: #f0f6fc; }
+        .modal-card p { font-size: 12px; color: #8b949e; margin-bottom: 14px; line-height: 1.4; }
+        .modal-input {
+            width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #30363d;
+            background: #0d1117; color: #f0f6fc; outline: none; margin-bottom: 16px; font-size: 13px;
+        }
+
+        @media (max-width: 768px) {
+            #timeline-bar { width: 280px; }
+            #profile-card { width: 220px; bottom: 80px; left: 12px; }
+            #presets-bar { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Header -->
+    <div id="ui-header">
+        <div class="mode-switch">
+            <button class="mode-btn active" id="mode-skyline">🏙️ Skyline</button>
+            <button class="mode-btn" id="mode-galaxy">🌌 Galaxy</button>
+            <button class="mode-btn" id="mode-duel">⚔️ Duel VS</button>
+        </div>
+
+        <!-- Single User Input -->
+        <div class="input-group" id="single-user-group">
+            <span>github.com/</span>
+            <input type="text" id="username-input" class="username-input" placeholder="username" value="octocat" autocomplete="off">
+        </div>
+
+        <!-- Duel Users Inputs -->
+        <div class="input-group" id="duel-user-group" style="display: none;">
+            <input type="text" id="p1-input" class="username-input" placeholder="User 1" value="torvalds" style="width: 85px;">
+            <span style="color: #ff0055; font-weight: 900;">VS</span>
+            <input type="text" id="p2-input" class="username-input" placeholder="User 2" value="gaearon" style="width: 85px;">
+        </div>
+
+        <button class="btn btn-primary" id="load-btn">⚡ Visualize</button>
+        <button class="btn btn-secondary" id="screenshot-btn">📸 Save PNG</button>
+
+        <select id="theme-select" class="select-custom" title="Change Visual Theme">
+            <option value="github">🐙 GitHub Dark</option>
+            <option value="cyberpunk">🌌 Cyberpunk Neon</option>
+            <option value="emerald">🟢 Matrix Emerald</option>
+            <option value="sunset">🌅 Sunset Gold</option>
+            <option value="obsidian">⚡ Obsidian Silver</option>
+        </select>
+    </div>
+
+    <!-- Quick Username Presets -->
+    <div id="presets-bar">
+        <span style="font-size: 11px; color: #6e7681;">Presets:</span>
+        <div class="preset-chip" onclick="loadPreset('octocat')">octocat</div>
+        <div class="preset-chip" onclick="loadPreset('torvalds')">torvalds</div>
+        <div class="preset-chip" onclick="loadPreset('gaearon')">gaearon</div>
+        <div class="preset-chip" onclick="loadPreset('yyx990803')">yyx990803</div>
+        <div class="preset-chip" onclick="loadPreset('sindresorhus')">sindresorhus</div>
+    </div>
+
+    <!-- Duel VS Leaderboard Banner -->
+    <div id="duel-banner">
+        <div class="duel-player p1-color"><span id="p1-name">torvalds</span> (<span id="p1-score">0</span>★)</div>
+        <div class="vs-badge">VERSUS</div>
+        <div class="duel-player p2-color"><span id="p2-name">gaearon</span> (<span id="p2-score">0</span>★)</div>
+    </div>
+
+    <!-- Camera Controls -->
+    <div id="camera-widget">
+        <button class="icon-btn" id="btn-iso" title="Isometric 3D View">📐</button>
+        <button class="icon-btn" id="btn-top" title="Top-Down Heatmap View">🗺️</button>
+        <button class="icon-btn" id="btn-orbit" title="Toggle Auto-Rotation">🔄</button>
+        <button class="icon-btn" id="btn-audio" title="Toggle Sound FX">🔊</button>
+        <button class="icon-btn" id="btn-settings" title="Settings / PAT Token">⚙️</button>
+    </div>
+
+    <!-- User Profile Card -->
+    <div id="profile-card">
+        <div class="profile-header">
+            <img id="avatar" src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="Avatar">
+            <div class="user-details">
+                <h2 id="user-name">octocat</h2>
+                <p id="user-bio">GitHub Mascot</p>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-item"><span class="stat-label">Public Repos</span><span class="stat-value" id="repo-count">0</span></div>
+            <div class="stat-item"><span class="stat-label">Stars Earned</span><span class="stat-value" id="star-count">0</span></div>
+            <div class="stat-item"><span class="stat-label">Followers</span><span class="stat-value" id="follower-count">0</span></div>
+            <div class="stat-item"><span class="stat-label">365d Activity</span><span class="stat-value" id="total-commits">0</span></div>
+        </div>
+
+        <div style="font-size: 11px; color: #8b949e; display: flex; justify-content: space-between;">
+            <span>Top Language</span><span id="top-lang-name">-</span>
+        </div>
+        <div class="lang-bar" id="lang-bar"></div>
+    </div>
+
+    <!-- 12-Month Timeline Controller -->
+    <div id="timeline-bar">
+        <button id="play-btn" title="Play/Pause 12-Month Timeline">▶</button>
+        <input type="range" id="scrubber" min="0" max="51" value="51" step="1">
+        <div id="timeline-label">52 Weeks (Full Year)</div>
+    </div>
+
+    <!-- Raycaster Tooltip & Toast -->
+    <div id="tooltip">
+        <div class="tooltip-date" id="tt-date">2026-08-11</div>
+        <div class="tooltip-count" id="tt-count">14 contributions</div>
+    </div>
+    <div id="toast">Notification</div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal">
+        <div class="modal-card">
+            <h3>⚙️ Settings</h3>
+            <p>Enter a Personal Access Token (PAT) if you hit GitHub API rate limits (60 req/hr).</p>
+            <input type="password" id="pat-input" class="modal-input" placeholder="ghp_xxxxxxxxxxxx">
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button class="btn btn-secondary" id="close-settings-btn">Close</button>
+                <button class="btn btn-primary" id="save-settings-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js CDN imports -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ----- Web Audio FX -----
+        class SoundFX {
+            constructor() { this.enabled = true; this.ctx = null; }
+            init() { if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); } }
+            hover() {
+                if (!this.enabled) return; this.init(); if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(520, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.04);
+                gain.gain.setValueAtTime(0.015, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.04);
+            }
+            chime() {
+                if (!this.enabled) return; this.init(); if (!this.ctx) return;
+                [440, 554.37, 659.25, 880].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.07);
+                    gain.gain.setValueAtTime(0.03, this.ctx.currentTime + i * 0.07);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.07 + 0.25);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + i * 0.07); osc.stop(this.ctx.currentTime + i * 0.07 + 0.25);
+                });
+            }
+        }
+        const audio = new SoundFX();
+
+        // ----- DOM Elements -----
+        const usernameInput = document.getElementById('username-input');
+        const p1Input = document.getElementById('p1-input');
+        const p2Input = document.getElementById('p2-input');
+        const loadBtn = document.getElementById('load-btn');
+        const screenshotBtn = document.getElementById('screenshot-btn');
+        const themeSelect = document.getElementById('theme-select');
+        const singleUserGroup = document.getElementById('single-user-group');
+        const duelUserGroup = document.getElementById('duel-user-group');
+        const duelBanner = document.getElementById('duel-banner');
+        const p1NameEl = document.getElementById('p1-name');
+        const p2NameEl = document.getElementById('p2-name');
+        const p1ScoreEl = document.getElementById('p1-score');
+        const p2ScoreEl = document.getElementById('p2-score');
+        const avatarEl = document.getElementById('avatar');
+        const userNameEl = document.getElementById('user-name');
+        const userBioEl = document.getElementById('user-bio');
+        const repoCountEl = document.getElementById('repo-count');
+        const starCountEl = document.getElementById('star-count');
+        const followerCountEl = document.getElementById('follower-count');
+        const totalCommitsEl = document.getElementById('total-commits');
+        const langBarEl = document.getElementById('lang-bar');
+        const topLangNameEl = document.getElementById('top-lang-name');
+        const playBtn = document.getElementById('play-btn');
+        const scrubber = document.getElementById('scrubber');
+        const timelineLabel = document.getElementById('timeline-label');
+        const tooltipEl = document.getElementById('tooltip');
+        const ttDateEl = document.getElementById('tt-date');
+        const ttCountEl = document.getElementById('tt-count');
+        const toastEl = document.getElementById('toast');
+
+        // Mode: 'skyline', 'galaxy', 'duel'
+        let currentMode = 'skyline';
+
+        // ----- Theme Configurations -----
+        const THEMES = {
+            github: { bg: 0x0d1117, grid: 0x30363d, fog: 0x0d1117, palette: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'], emissive: 0x00ff66, light: 0xffeedd, weather: 'dust' },
+            cyberpunk: { bg: 0x080414, grid: 0xff007f, fog: 0x080414, palette: ['#140824', '#4a0e4e', '#800080', '#ff007f', '#00f0ff'], emissive: 0xff007f, light: 0xff00aa, weather: 'embers' },
+            emerald: { bg: 0x02120b, grid: 0x0d4026, fog: 0x02120b, palette: ['#041a10', '#0a3a22', '#12633a', '#1fb86c', '#55ff9e'], emissive: 0x39d353, light: 0x55ff9e, weather: 'rain' },
+            sunset: { bg: 0x180b18, grid: 0x4a223e, fog: 0x180b18, palette: ['#241024', '#57183e', '#9b2b52', '#e65c40', '#ffb03a'], emissive: 0xffa020, light: 0xffaa44, weather: 'embers' },
+            obsidian: { bg: 0x0a0a0c, grid: 0x222228, fog: 0x0a0a0c, palette: ['#121215', '#2a2a35', '#4f5065', '#8a8d00', '#ffffff'], emissive: 0xffffff, light: 0xffffff, weather: 'dust' }
+        };
+        let currentTheme = THEMES.github;
+
+        // ----- Three.js Setup -----
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(currentTheme.bg);
+        scene.fog = new THREE.FogExp2(currentTheme.fog, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 400);
+        camera.position.set(28, 22, 28);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.prepend(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.8;
+        controls.maxPolarAngle = Math.PI / 2.05;
+        controls.target.set(0, 2, 0);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const dirLight1 = new THREE.DirectionalLight(currentTheme.light, 2.2);
+        dirLight1.position.set(30, 45, 25);
+        dirLight1.castShadow = true;
+        dirLight1.shadow.mapSize.width = 2048;
+        dirLight1.shadow.mapSize.height = 2048;
+        scene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0x4488ff, 0.8);
+        dirLight2.position.set(-25, 15, -25);
+        scene.add(dirLight2);
+
+        let gridHelper = new THREE.GridHelper(60, 60, currentTheme.grid, 0x1f242c);
+        scene.add(gridHelper);
+
+        // Container Groups
+        const cityGroup = new THREE.Group();
+        const galaxyGroup = new THREE.Group();
+        const weatherGroup = new THREE.Group();
+        scene.add(cityGroup);
+        scene.add(galaxyGroup);
+        scene.add(weatherGroup);
+
+        // Raycasting
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(-1000, -1000);
+        let hoveredMesh = null;
+        let originalEmissive = null;
+        const interactiveMeshes = [];
+
+        // Procedural Window Texture Generator
+        function createBuildingWindowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0a0d12';
+            ctx.fillRect(0, 0, 64, 128);
+            ctx.fillStyle = '#ffffff';
+            for (let y = 8; y < 120; y += 12) {
+                for (let x = 8; x < 56; x += 14) {
+                    if (Math.random() > 0.35) {
+                        ctx.globalAlpha = 0.3 + Math.random() * 0.7;
+                        ctx.fillRect(x, y, 8, 6);
+                    }
+                }
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 2);
+            return texture;
+        }
+        const windowTexture = createBuildingWindowTexture();
+
+        // Weather System Particles
+        function setupWeatherParticles() {
+            while (weatherGroup.children.length > 0) weatherGroup.remove(weatherGroup.children[0]);
+            const count = 600;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            for (let i = 0; i < count * 3; i += 3) {
+                pos[i] = (Math.random() - 0.5) * 120;
+                pos[i+1] = Math.random() * 60;
+                pos[i+2] = (Math.random() - 0.5) * 120;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({
+                color: currentTheme.emissive,
+                size: currentTheme.weather === 'rain' ? 0.15 : 0.3,
+                transparent: true,
+                opacity: 0.6
+            });
+            const particles = new THREE.Points(geo, mat);
+            weatherGroup.add(particles);
+        }
+        setupWeatherParticles();
+
+        function showToast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            setTimeout(() => toastEl.classList.remove('show'), 2500);
+        }
+
+        // Mode Selector Handlers
+        document.getElementById('mode-skyline').addEventListener('click', (e) => switchMode('skyline', e.target));
+        document.getElementById('mode-galaxy').addEventListener('click', (e) => switchMode('galaxy', e.target));
+        document.getElementById('mode-duel').addEventListener('click', (e) => switchMode('duel', e.target));
+
+        function switchMode(mode, btnEl) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            btnEl.classList.add('active');
+
+            singleUserGroup.style.display = mode === 'duel' ? 'none' : 'flex';
+            duelUserGroup.style.display = mode === 'duel' ? 'flex' : 'none';
+            duelBanner.style.display = mode === 'duel' ? 'flex' : 'none';
+
+            if (mode === 'skyline') {
+                cityGroup.visible = true;
+                galaxyGroup.visible = false;
+                camera.position.set(28, 22, 28);
+                controls.target.set(0, 2, 0);
+            } else if (mode === 'galaxy') {
+                cityGroup.visible = false;
+                galaxyGroup.visible = true;
+                camera.position.set(0, 15, 35);
+                controls.target.set(0, 0, 0);
+            } else if (mode === 'duel') {
+                cityGroup.visible = true;
+                galaxyGroup.visible = false;
+                camera.position.set(38, 26, 38);
+                controls.target.set(0, 2, 0);
+            }
+            controls.update();
+            triggerLoad();
+        }
+
+        // ----- Settings Modal & Memory Management -----
+        const settingsModal = document.getElementById('settings-modal');
+        const patInput = document.getElementById('pat-input');
+        let customPAT = localStorage.getItem('git_viz_pat') || '';
+        if (patInput) patInput.value = customPAT;
+
+        document.getElementById('btn-settings').addEventListener('click', () => settingsModal.style.display = 'flex');
+        document.getElementById('close-settings-btn').addEventListener('click', () => settingsModal.style.display = 'none');
+        document.getElementById('save-settings-btn').addEventListener('click', () => {
+            customPAT = patInput.value.trim();
+            localStorage.setItem('git_viz_pat', customPAT);
+            showToast('✅ PAT Token Saved!');
+            settingsModal.style.display = 'none';
+            triggerLoad();
+        });
+
+        function clearGroup(group) {
+            while (group.children.length > 0) {
+                const obj = group.children[0];
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
+                }
+                group.remove(obj);
+            }
+        }
+
+        // ----- GitHub API & Builder (With Rate Limit & Demo Fallback) -----
+        let currentGridData = [];
+        let isPlayingTimeline = false;
+        let timelineTimer = null;
+
+        async function fetchUserData(username) {
+            const headers = customPAT ? { Authorization: `token ${customPAT}` } : {};
+            try {
+                const userRes = await fetch(`https://api.github.com/users/${username}`, { headers });
+                if (userRes.status === 403) throw new Error('API Rate Limit Exceeded');
+                if (!userRes.ok) throw new Error(`User not found (${userRes.status})`);
+                const user = await userRes.json();
+
+                const reposRes = await fetch(`https://api.github.com/users/${username}/repos?per_page=100&sort=updated`, { headers });
+                const repos = reposRes.ok ? await reposRes.json() : [];
+
+                const eventsRes = await fetch(`https://api.github.com/users/${username}/events?per_page=100`, { headers });
+                const events = eventsRes.ok ? await eventsRes.json() : [];
+
+                return { user, repos, events };
+            } catch (err) {
+                console.warn(`Fallback for ${username}: ${err.message}`);
+                showToast(`⚠️ ${err.message}. Loaded Demo Profile!`);
+                return generateDemoData(username);
+            }
+        }
+
+        function generateDemoData(username) {
+            const mockUser = {
+                login: username, name: username.charAt(0).toUpperCase() + username.slice(1),
+                bio: 'Open Source Developer & 3D Creator', followers: 1250, public_repos: 36,
+                avatar_url: `https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png`
+            };
+            const langs = ['TypeScript', 'JavaScript', 'Python', 'Go', 'Rust', 'HTML', 'CSS'];
+            const mockRepos = Array.from({ length: 16 }, (_, i) => ({
+                name: `${username}-project-${i+1}`, stargazers_count: Math.floor(Math.random() * 650) + 20,
+                language: langs[i % langs.length], html_url: `https://github.com/${username}`
+            }));
+            return { user: mockUser, repos: mockRepos, events: [] };
+        }
+
+        async function triggerLoad() {
+            loadBtn.disabled = true;
+            loadBtn.textContent = '⏳ Loading...';
+
+            try {
+                if (currentMode === 'duel') {
+                    const u1 = p1Input.value.trim();
+                    const u2 = p2Input.value.trim();
+                    const [d1, d2] = await Promise.all([fetchUserData(u1), fetchUserData(u2)]);
+                    buildDuelSkylines(d1, d2);
+                } else {
+                    const u = usernameInput.value.trim();
+                    const data = await fetchUserData(u);
+
+                    // Update Card
+                    avatarEl.src = data.user.avatar_url;
+                    userNameEl.textContent = data.user.name || data.user.login;
+                    userBioEl.textContent = data.user.bio || `@${data.user.login}`;
+                    followerCountEl.textContent = (data.user.followers || 0).toLocaleString();
+                    repoCountEl.textContent = (data.user.public_repos || 0).toLocaleString();
+
+                    let stars = 0; const langs = {};
+                    data.repos.forEach(r => {
+                        stars += r.stargazers_count || 0;
+                        if (r.language) langs[r.language] = (langs[r.language] || 0) + 1;
+                    });
+                    starCountEl.textContent = stars.toLocaleString();
+
+                    // Build Languages
+                    const sortedLangs = Object.entries(langs).sort((a,b) => b[1] - a[1]);
+                    topLangNameEl.textContent = sortedLangs.length ? sortedLangs[0][0] : '-';
+                    langBarEl.innerHTML = '';
+                    const totalL = sortedLangs.reduce((a,c) => a + c[1], 0);
+                    sortedLangs.slice(0,5).forEach(([l, c]) => {
+                        const seg = document.createElement('div');
+                        seg.className = 'lang-segment'; seg.style.width = `${(c/totalL)*100}%`;
+                        seg.style.backgroundColor = getLangColor(l);
+                        langBarEl.appendChild(seg);
+                    });
+
+                    if (currentMode === 'skyline') {
+                        currentGridData = generate365Grid(data.events, data.repos);
+                        build3DSkyline(currentGridData, cityGroup, currentTheme.palette, 0);
+                    } else if (currentMode === 'galaxy') {
+                        buildRepoGalaxy(data.user, data.repos);
+                    }
+                }
+                audio.chime();
+                showToast(`✨ Rendered ${currentMode} visualization!`);
+            } catch (err) {
+                console.error(err);
+                showToast(`❌ ${err.message}`);
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '⚡ Visualize';
+            }
+        }
+
+        function getLangColor(lang) {
+            const map = { 'JavaScript': '#f1e05a', 'TypeScript': '#3178c6', 'Python': '#3572A5', 'Java': '#b07219', 'C++': '#f34b7d', 'C#': '#178600', 'Go': '#00ADD8', 'Rust': '#dea584', 'HTML': '#e34c26', 'CSS': '#563d7c', 'Ruby': '#701516', 'PHP': '#4F5D95' };
+            return map[lang] || '#58a6ff';
+        }
+
+        function generate365Grid(events, repos) {
+            const grid = []; const weeks = 52; const today = new Date();
+            const eventMap = {};
+            events.forEach(ev => { if (ev.created_at) eventMap[ev.created_at.split('T')[0]] = (eventMap[ev.created_at.split('T')[0]] || 0) + 1; });
+            let sum = 0;
+
+            for (let c = 0; c < weeks; c++) {
+                grid[c] = [];
+                for (let r = 0; r < 7; r++) {
+                    const dayIndex = (weeks - 1 - c) * 7 + (6 - r);
+                    const d = new Date(today); d.setDate(d.getDate() - dayIndex);
+                    const dateStr = d.toISOString().split('T')[0];
+                    let count = eventMap[dateStr] || 0;
+                    if (count === 0) {
+                        const pseudo = Math.abs(Math.sin(d.getTime())) * 100;
+                        if (pseudo < Math.min(65, repos.length * 3 + 10)) count = Math.floor((pseudo % 10)) + 1;
+                    }
+                    let level = 0;
+                    if (count > 0 && count <= 2) level = 1;
+                    else if (count > 2 && count <= 5) level = 2;
+                    else if (count > 5 && count <= 9) level = 3;
+                    else if (count > 9) level = 4;
+                    sum += count;
+                    grid[c][r] = { date: dateStr, day: d.toLocaleDateString('en-US', { weekday: 'short' }), count, level, weekIndex: c };
+                }
+            }
+            totalCommitsEl.textContent = sum.toLocaleString();
+            return grid;
+        }
+
+        // 3D Canvas Text Sprite Generator (For Galaxy Repos)
+        function createTextSprite(text, color = '#f0f6fc') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'Bold 20px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowBlur = 6;
+            ctx.fillText(text, 128, 40);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(4, 1, 1);
+            return sprite;
+        }
+
+        // ----- Build 3D City Skyline (With Windows & Antennas) -----
+        function build3DSkyline(gridData, parentGroup, palette, xCenterOffset = 0) {
+            clearGroup(parentGroup);
+            interactiveMeshes.length = 0;
+
+            const cols = gridData.length; const blockWidth = 0.75; const gap = 0.95;
+            const xOffset = (cols * gap) / 2 - xCenterOffset;
+            const zOffset = (7 * gap) / 2;
+
+            gridData.forEach((col, c) => {
+                col.forEach((cell, r) => {
+                    const x = c * gap - xOffset;
+                    const z = r * gap - zOffset;
+                    const targetHeight = cell.level === 0 ? 0.15 : (cell.level * 1.8 + Math.random() * 0.4);
+                    const hexColor = palette[cell.level];
+
+                    const geo = new THREE.BoxGeometry(blockWidth, 1, blockWidth);
+                    geo.translate(0, 0.5, 0);
+
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: new THREE.Color(hexColor),
+                        roughness: 0.3, metalness: 0.4,
+                        emissive: new THREE.Color(hexColor),
+                        emissiveIntensity: cell.level > 0 ? 0.2 : 0.02,
+                        map: cell.level >= 2 ? windowTexture : null
+                    });
+
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(x, 0, z);
+                    mesh.scale.set(1, targetHeight, 1);
+                    mesh.castShadow = true; mesh.receiveShadow = true;
+
+                    mesh.userData = { date: cell.date, day: cell.day, count: cell.count, level: cell.level, weekIndex: cell.weekIndex, targetHeight };
+                    parentGroup.add(mesh);
+                    interactiveMeshes.push(mesh);
+
+                    // Add rooftop antenna for Level 4 Skyscrapers
+                    if (cell.level >= 4) {
+                        const antGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6);
+                        const antMat = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+                        const antenna = new THREE.Mesh(antGeo, antMat);
+                        antenna.position.set(x, targetHeight + 0.6, z);
+                        parentGroup.add(antenna);
+                    }
+                });
+            });
+        }
+
+        // ----- Build 3D Repo Galaxy Constellation (With Floating Labels) -----
+        function buildRepoGalaxy(user, repos) {
+            clearGroup(galaxyGroup);
+            interactiveMeshes.length = 0;
+
+            // Central User Star
+            const coreGeo = new THREE.SphereGeometry(2.5, 32, 32);
+            const coreMat = new THREE.MeshStandardMaterial({ color: currentTheme.emissive, emissive: currentTheme.emissive, emissiveIntensity: 0.8 });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            galaxyGroup.add(core);
+
+            // Floating Central User Label
+            const coreLabel = createTextSprite(`@${user.login}`, '#58a6ff');
+            coreLabel.position.set(0, 3.8, 0);
+            galaxyGroup.add(coreLabel);
+
+            // Orbiting Repositories
+            repos.slice(0, 24).forEach((repo, idx) => {
+                const angle = (idx / Math.min(24, repos.length)) * Math.PI * 2;
+                const dist = 10 + (idx % 3) * 4;
+                const x = Math.cos(angle) * dist;
+                const z = Math.sin(angle) * dist;
+                const y = (Math.random() - 0.5) * 6;
+
+                const starScale = 0.6 + Math.min(2.5, (repo.stargazers_count || 0) / 10);
+                const color = getLangColor(repo.language);
+                const repoGeo = new THREE.SphereGeometry(starScale, 16, 16);
+                const repoMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), emissive: new THREE.Color(color), emissiveIntensity: 0.5 });
+                const repoMesh = new THREE.Mesh(repoGeo, repoMat);
+                repoMesh.position.set(x, y, z);
+
+                repoMesh.userData = { isRepo: true, name: repo.name, stars: repo.stargazers_count, lang: repo.language || 'Unknown', url: repo.html_url };
+                galaxyGroup.add(repoMesh);
+                interactiveMeshes.push(repoMesh);
+
+                // Floating 3D Text Label
+                const label = createTextSprite(`${repo.name} (★${repo.stargazers_count})`, color);
+                label.position.set(x, y + starScale + 0.8, z);
+                galaxyGroup.add(label);
+
+                // Laser Beam Connection Line
+                const lineMat = new THREE.LineBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: 0.35 });
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(x, y, z)]);
+                const line = new THREE.Line(lineGeo, lineMat);
+                galaxyGroup.add(line);
+            });
+        }
+
+        // ----- Build Duel VS Side-by-Side Skylines -----
+        function buildDuelSkylines(d1, d2) {
+            p1NameEl.textContent = d1.user.login;
+            p2NameEl.textContent = d2.user.login;
+            let s1 = 0, s2 = 0;
+            d1.repos.forEach(r => s1 += r.stargazers_count || 0);
+            d2.repos.forEach(r => s2 += r.stargazers_count || 0);
+            p1ScoreEl.textContent = s1; p2ScoreEl.textContent = s2;
+
+            const grid1 = generate365Grid(d1.events, d1.repos);
+            const grid2 = generate365Grid(d2.events, d2.repos);
+
+            clearGroup(cityGroup);
+            interactiveMeshes.length = 0;
+
+            const p1Palette = ['#082032', '#0f4c75', '#3282b8', '#00f0ff', '#ffffff'];
+            const p2Palette = ['#2b0015', '#67002d', '#9e0031', '#ff0055', '#ffaa00'];
+
+            build3DSkyline(grid1, cityGroup, p1Palette, 28);
+            build3DSkyline(grid2, cityGroup, p2Palette, -28);
+
+            // Divider Laser Beam Line
+            const divGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -25), new THREE.Vector3(0, 0, 25)]);
+            const divMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+            const divider = new THREE.Line(divGeo, divMat);
+            cityGroup.add(divider);
+        }
+
+        // ----- Timeline Playback & Scrubber Controls -----
+        scrubber.addEventListener('input', (e) => filterTimeline(parseInt(e.target.value)));
+
+        function filterTimeline(maxWeek) {
+            timelineLabel.textContent = maxWeek === 51 ? '52 Weeks (Full Year)' : `Week 1 to Week ${maxWeek + 1}`;
+            interactiveMeshes.forEach(mesh => {
+                if (mesh.userData.weekIndex !== undefined) {
+                    if (mesh.userData.weekIndex <= maxWeek) {
+                        mesh.scale.y = mesh.userData.targetHeight;
+                        mesh.visible = true;
+                    } else {
+                        mesh.scale.y = 0.01;
+                        mesh.visible = false;
+                    }
+                }
+            });
+        }
+
+        playBtn.addEventListener('click', () => {
+            isPlayingTimeline = !isPlayingTimeline;
+            playBtn.textContent = isPlayingTimeline ? '⏸' : '▶';
+
+            if (isPlayingTimeline) {
+                let currentW = 0;
+                scrubber.value = 0; filterTimeline(0);
+                timelineTimer = setInterval(() => {
+                    currentW++;
+                    if (currentW > 51) {
+                        currentW = 51; clearInterval(timelineTimer);
+                        isPlayingTimeline = false; playBtn.textContent = '▶';
+                    }
+                    scrubber.value = currentW;
+                    filterTimeline(currentW);
+                }, 100);
+            } else {
+                clearInterval(timelineTimer);
+            }
+        });
+
+        // ----- Mouse Move Raycaster -----
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            tooltipEl.style.left = `${e.clientX}px`;
+            tooltipEl.style.top = `${e.clientY}px`;
+        });
+
+        window.addEventListener('click', () => {
+            if (hoveredMesh && hoveredMesh.userData.isRepo && hoveredMesh.userData.url) {
+                window.open(hoveredMesh.userData.url, '_blank');
+            }
+        });
+
+        function checkRaycast() {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactiveMeshes);
+
+            if (intersects.length > 0) {
+                const mesh = intersects[0].object;
+                if (hoveredMesh !== mesh) {
+                    if (hoveredMesh) hoveredMesh.material.emissive.set(originalEmissive);
+                    hoveredMesh = mesh;
+                    originalEmissive = mesh.material.emissive.getHex();
+                    mesh.material.emissive.set(currentTheme.emissive);
+
+                    if (mesh.userData.isRepo) {
+                        ttDateEl.textContent = `📦 ${mesh.userData.name} (${mesh.userData.lang})`;
+                        ttCountEl.textContent = `⭐ ${mesh.userData.stars} stars · Click to open`;
+                    } else {
+                        ttDateEl.textContent = `${mesh.userData.day}, ${mesh.userData.date}`;
+                        ttCountEl.textContent = `${mesh.userData.count} contribution${mesh.userData.count === 1 ? '' : 's'}`;
+                    }
+                    tooltipEl.classList.add('active');
+                    audio.hover();
+                }
+            } else {
+                if (hoveredMesh) {
+                    hoveredMesh.material.emissive.set(originalEmissive);
+                    hoveredMesh = null;
+                    tooltipEl.classList.remove('active');
+                }
+            }
+        }
+
+        // Camera Widget Listeners
+        document.getElementById('btn-iso').addEventListener('click', () => { camera.position.set(28, 22, 28); controls.target.set(0,2,0); controls.update(); });
+        document.getElementById('btn-top').addEventListener('click', () => { camera.position.set(0, 48, 0.1); controls.target.set(0,0,0); controls.update(); });
+        document.getElementById('btn-orbit').addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; showToast(controls.autoRotate ? '🔄 Auto-rotation Enabled' : '⏸ Auto-rotation Paused'); });
+        document.getElementById('btn-audio').addEventListener('click', (e) => { audio.enabled = !audio.enabled; e.currentTarget.textContent = audio.enabled ? '🔊' : '🔇'; showToast(audio.enabled ? '🔊 Audio FX On' : '🔇 Audio FX Muted'); });
+
+        screenshotBtn.addEventListener('click', () => {
+            renderer.render(scene, camera);
+            const link = document.createElement('a'); link.download = `git-viz-${currentMode}.png`;
+            link.href = renderer.domElement.toDataURL('image/png'); link.click();
+            showToast('📸 Screenshot saved!');
+        });
+
+        loadBtn.addEventListener('click', triggerLoad);
+        themeSelect.addEventListener('change', (e) => {
+            currentTheme = THEMES[e.target.value];
+            scene.background.set(currentTheme.bg);
+            scene.fog.color.set(currentTheme.fog);
+            dirLight1.color.set(currentTheme.light);
+            scene.remove(gridHelper);
+            gridHelper = new THREE.GridHelper(60, 60, currentTheme.grid, 0x1f242c);
+            scene.add(gridHelper);
+            setupWeatherParticles();
+            triggerLoad();
+        });
+
+        window.loadPreset = (u) => { usernameInput.value = u; triggerLoad(); };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation Loop
+        function animate(time) {
+            requestAnimationFrame(animate);
+            if (galaxyGroup.visible) galaxyGroup.rotation.y = time * 0.0004;
+
+            // Animate Weather Particles
+            if (weatherGroup.children.length > 0) {
+                const pts = weatherGroup.children[0];
+                const pos = pts.geometry.attributes.position.array;
+                for (let i = 1; i < pos.length; i += 3) {
+                    pos[i] -= 0.15;
+                    if (pos[i] < 0) pos[i] = 60;
+                }
+                pts.geometry.attributes.position.needsUpdate = true;
+            }
+
+            checkRaycast();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate(0);
+
+        // Initial Load
+        triggerLoad();
+    </script>
+</body>
+</html>
+
